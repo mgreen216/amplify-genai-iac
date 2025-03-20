@@ -90,13 +90,23 @@ variable "ecs_alarm_email" {
   type        = string
 }
 
+variable "ecs_scale_up_alarm_name" {
+  description = "The name for the scale up alarm"
+  type        = string
+}
+
 variable "ecs_scale_up_alarm_description" {
   description = "The description for the scale up alarm"
   type        = string
 }
 
+variable "ecs_scale_down_alarm_name" {
+  description = "The name for the scale down alarm"
+  type        = string
+}
+
 variable "ecs_scale_down_alarm_description" {
-  description = "The name of the scale up alarm"
+  description = "The description of the scale down alarm"
   type        = string
 }
 

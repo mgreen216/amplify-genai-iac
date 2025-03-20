@@ -102,7 +102,7 @@ resource "aws_sns_topic_subscription" "ecs_alarm_email" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "high_cpu" {
-  alarm_name          = "high_cpu_utilization"
+  alarm_name          = var.ecs_scale_up_alarm_name
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "2"
   metric_name         = "CPUUtilization"
@@ -119,7 +119,7 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "low_cpu" {
-  alarm_name          = "low_cpu_utilization"
+  alarm_name          = var.ecs_scale_down_alarm_name
   comparison_operator = "LessThanOrEqualToThreshold"
   evaluation_periods  = "2"
   metric_name         = "CPUUtilization"

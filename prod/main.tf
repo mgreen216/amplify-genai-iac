@@ -74,7 +74,9 @@ module "ecs" {
   openai_api_key_name              = "${local.env}-${var.openai_api_key_name}"
   openai_endpoints_name            = "${local.env}-${var.openai_endpoints_name}"
   envs_name                        = "${local.env}-${var.envs_name}"
+  ecs_scale_down_alarm_name        = "${local.env}-amplify-low-cpu-utilization"
   ecs_scale_down_alarm_description = "${local.env}-${var.ecs_scale_down_alarm_description}"
+  ecs_scale_up_alarm_name          = "${local.env}-amplify-high-cpu-utilization"
   ecs_scale_up_alarm_description   = "${local.env}-${var.ecs_scale_up_alarm_description}"
   ecs_alarm_email                  = var.ecs_alarm_email
   ecr_image_repository_arn         = module.ecr.ecr_image_repository_arn

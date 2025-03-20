@@ -259,7 +259,7 @@ resource "aws_vpc_endpoint" "s3" {
         "Effect": "Allow",
         "Principal": "*",
         "Action": ["s3:*"],
-        "Resource": ["arn:aws:s3:::*/*"],
+        "Resource": ["arn:aws:s3:::*", "arn:aws:s3:::*/*"],
         "Condition": {
           "StringEquals": {
             "aws:sourceVpc": "${aws_vpc.main.id}"
