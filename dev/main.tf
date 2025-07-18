@@ -10,7 +10,7 @@ module "load_balancer" {
   public_subnet_cidrs     = var.public_subnet_cidrs
   alb_logging_bucket_name = "${local.env}-${var.alb_logging_bucket_name}"
   alb_name                = "${local.env}-${var.alb_name}"
-  domain_name             = "${local.env}-${var.domain_name}"
+  domain_name             = var.domain_name
   target_group_name       = "${local.env}-${var.target_group_name}-${var.target_group_port}"
   target_group_port       = var.target_group_port
   alb_security_group_name = "${local.env}-${var.alb_security_group_name}"
@@ -23,15 +23,15 @@ module "cognito_pool" {
   source                  = "../modules/cognito_pool"
   depends_on              = [module.load_balancer]
   ssl_certificate_arn     = module.load_balancer.ssl_certificate_arn
-  cognito_domain          = "${local.env}-${var.cognito_domain}"
+  cognito_domain          = var.cognito_domain
   userpool_name           = "${local.env}-${var.userpool_name}"
   provider_name           = "${local.env}-${var.provider_name}"
   sp_metadata_url         = var.sp_metadata_url
-  callback_urls           = ["https://${local.env}-${var.domain_name}/api/auth/callback/cognito", "http://localhost:3000/api/auth/callback/cognito"]
-  logout_urls             = ["https://${local.env}-${var.domain_name}", "http://localhost:3000"]
+  callback_urls           = ["https://${var.domain_name}/api/auth/callback/cognito", "http://localhost:3000/api/auth/callback/cognito"]
+  logout_urls             = ["https://${var.domain_name}", "http://localhost:3000"]
   create_pre_auth_lambda  = var.create_pre_auth_lambda
   use_saml_idp            = var.use_saml_idp
-  domain_name             = "${local.env}-${var.domain_name}"
+  domain_name             = var.domain_name
   cognito_route53_zone_id = var.cognito_route53_zone_id
   disable_public_signup   = var.disable_public_signup
 }
