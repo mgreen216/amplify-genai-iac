@@ -174,25 +174,24 @@ resource "aws_subnet" "private" {
 }
 
 resource "aws_eip" "nat" {
+  count  = length(var.public_subnet_cidrs)
   domain = "vpc"
+
+  tags = {
+    Name = "nat-eip-${count.index}"
+  }
 }
 
 resource "aws_nat_gateway" "nat_gw" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public[0].id
+  count         = length(var.public_subnet_cidrs)
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public[count.index].id
 
   tags = {
-    Name = "main-nat-gw"
+    Name = "nat-gw-${count.index}"
   }
 
   depends_on = [aws_internet_gateway.igw]
-}
-
-# Update the private route table to use the NAT Gateway for internet-bound traffic
-resource "aws_route" "private_nat_gw" {
-  route_table_id         = aws_route_table.private.id
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.nat_gw.id
 }
 
 # Create an Internet Gateway
@@ -218,12 +217,22 @@ resource "aws_route_table" "public" {
   }
 }
 
-# Create private route table for the VPC
+# Create private route tables - one per AZ for NAT Gateway redundancy
 resource "aws_route_table" "private" {
+  count  = length(var.private_subnet_cidrs)
   vpc_id = aws_vpc.main.id
+
   tags = {
-    Name = "private-route-table"
+    Name = "private-route-table-${count.index}"
   }
+}
+
+# Route internet-bound traffic through the AZ-local NAT Gateway
+resource "aws_route" "private_nat_gw" {
+  count                  = length(var.private_subnet_cidrs)
+  route_table_id         = aws_route_table.private[count.index].id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.nat_gw[count.index].id
 }
 
 # Associate public subnets with public route table
@@ -233,11 +242,11 @@ resource "aws_route_table_association" "public" {
   subnet_id      = each.value.id
 }
 
-# Ensure the private route table is associated with the private subnets
+# Ensure each private subnet is associated with its AZ-local route table
 resource "aws_route_table_association" "private" {
-  for_each      = { for idx, subnet in aws_subnet.private : idx => subnet }
-  route_table_id = aws_route_table.private.id
-  subnet_id      = each.value.id
+  count          = length(var.private_subnet_cidrs)
+  route_table_id = aws_route_table.private[count.index].id
+  subnet_id      = aws_subnet.private[count.index].id
 }
 
 # Create an S3 gateway endpoint
@@ -246,10 +255,10 @@ resource "aws_vpc_endpoint" "s3" {
   service_name      = "com.amazonaws.${var.region}.s3"
   vpc_endpoint_type = "Gateway"
 
-  route_table_ids = [
-    aws_route_table.public.id,
-    aws_route_table.private.id
-  ]
+  route_table_ids = concat(
+    [aws_route_table.public.id],
+    aws_route_table.private[*].id
+  )
 
   policy = <<POLICY
   {
@@ -354,19 +363,22 @@ resource "aws_lb" "alb" {
   depends_on = [aws_acm_certificate_validation.ssl_cert_validation, aws_s3_bucket.alb_access_logs]
 }
 
-#Create 2 Route53 records if root_redirect is false  CNAME for e.g. alpha.vanderbilt.ai or dev.vanderbilt.ai - Adjusted to Alias because subdomain is delegated. 
-resource "aws_route53_record" "root_cname" {
-  count = var.root_redirect ? 0:1
-  zone_id = var.app_route53_zone_id
-  name    = var.domain_name
-  type    = "A" 
-    
-  alias {
-    name                   = aws_lb.alb.dns_name
-    zone_id                = aws_lb.alb.zone_id
-    evaluate_target_health = true # Set to false if you do not want to evaluate the health of the target
-  }
-}
+# Route53 A record for the domain -> ALB
+# NOTE: For initial deployment, this is managed outside Terraform if the record already exists.
+# To bring under Terraform management: terraform import 'module.load_balancer.aws_route53_record.root_cname[0]' Z03004413QUNALYU5AAL1_hfu-amplify.org_A
+# TEMPORARILY DISABLED — import existing record before re-enabling:
+# terraform import 'module.load_balancer.aws_route53_record.root_cname[0]' Z03004413QUNALYU5AAL1_hfu-amplify.org_A
+#resource "aws_route53_record" "root_cname" {
+#  count = var.root_redirect ? 0:1
+#  zone_id = var.app_route53_zone_id
+#  name    = var.domain_name
+#  type    = "A"
+#  alias {
+#    name                   = aws_lb.alb.dns_name
+#    zone_id                = aws_lb.alb.zone_id
+#    evaluate_target_health = true
+#  }
+#}
 
 #Create 2 Route53 records if root_redirect is true Alias record for root domain and CNAME for www
 resource "aws_route53_record" "root_alias" {

@@ -10,7 +10,7 @@ module "load_balancer" {
   public_subnet_cidrs     = var.public_subnet_cidrs
   alb_logging_bucket_name = "${local.env}-${var.alb_logging_bucket_name}"
   alb_name                = "${local.env}-${var.alb_name}"
-  domain_name             = "${local.env}-${var.domain_name}"
+  domain_name             = var.domain_name
   target_group_name       = "${local.env}-${var.target_group_name}-${var.target_group_port}"
   target_group_port       = var.target_group_port
   alb_security_group_name = "${local.env}-${var.alb_security_group_name}"
@@ -21,19 +21,8 @@ module "load_balancer" {
 
 module "cognito_pool" {
   source                  = "../modules/cognito_pool"
-  depends_on              = [module.load_balancer]
-  ssl_certificate_arn     = module.load_balancer.ssl_certificate_arn
-  cognito_domain          = "${local.env}-${var.cognito_domain}"
-  userpool_name           = "${local.env}-${var.userpool_name}"
-  provider_name           = "${local.env}-${var.provider_name}"
-  sp_metadata_url         = var.sp_metadata_url
-  callback_urls           = ["https://${local.env}-${var.domain_name}/api/auth/callback/cognito", "http://localhost:3000/api/auth/callback/cognito"]
-  logout_urls             = ["https://${local.env}-${var.domain_name}", "http://localhost:3000"]
-  create_pre_auth_lambda  = var.create_pre_auth_lambda
-  use_saml_idp            = var.use_saml_idp
-  domain_name             = "${local.env}-${var.domain_name}"
+  cognito_domain          = var.cognito_domain
   cognito_route53_zone_id = var.cognito_route53_zone_id
-  disable_public_signup   = var.disable_public_signup
 }
 
 module "ecr" {
@@ -85,7 +74,51 @@ module "ecs" {
   alb_sg_id                        = ["${module.load_balancer.alb_sg_id}"]
 }
 
-# load_balancer/outputs.tf
+# --- WAF (Web Application Firewall for CloudFront) ---
+module "waf" {
+  source      = "../modules/waf"
+  name_prefix = "amplify"
+  environment = local.env
+
+  # NOTE: WAF for CloudFront must be created in us-east-1
+  # If your default provider is in another region, add a provider alias:
+  # providers = { aws = aws.us_east_1 }
+}
+
+# --- SES (Email delivery for Cognito password reset) ---
+module "ses" {
+  source                   = "../modules/ses"
+  domain                   = var.domain_name
+  route53_zone_id          = var.app_route53_zone_id
+  aws_region               = var.region
+  enable_mail_from         = true
+  enable_configuration_set = true
+}
+
+# --- Monitoring (CloudWatch alarms + SNS notifications) ---
+module "monitoring" {
+  source                  = "../modules/monitoring"
+  depends_on              = [module.ecs, module.load_balancer]
+  name_prefix             = "amplify"
+  environment             = local.env
+  alarm_email             = var.ecs_alarm_email
+  ecs_cluster_name        = module.ecs.ecs_cluster_name
+  ecs_service_name        = module.ecs.ecs_service_name
+  alb_arn_suffix          = module.load_balancer.alb_arn_suffix
+  target_group_arn_suffix = module.load_balancer.target_group_arn_suffix
+}
+
+# --- Outputs ---
+
+output "waf_web_acl_arn" {
+  description = "WAF Web ACL ARN for CloudFront attachment"
+  value       = module.waf.web_acl_arn
+}
+
+output "ses_domain_identity_arn" {
+  description = "SES domain identity ARN for Cognito email configuration"
+  value       = module.ses.domain_identity_arn
+}
 
 output "vpc_id" {
   description = "The ID of the VPC"
@@ -107,27 +140,12 @@ output "private_subnet_ids" {
   value       = module.load_balancer.private_subnet_ids
 }
 
-output "cognito_user_pool_id" {
-  value       = module.cognito_pool.cognito_user_pool_id
-  description = "The UserPool ID"
-}
-
-output "user_pool_domain" {
-  value       = module.cognito_pool.user_pool_domain
-  description = "Custom Domain"
-}
-
-output "cognito_user_pool_url" {
-  value = module.cognito_pool.cognito_user_pool_url
-}
-
-output "cognito_user_pool_client_id" {
-  value = module.cognito_pool.cognito_user_pool_client_id
-}
-
-output "cognito_user_pool_client_secret" {
-  value = module.cognito_pool.cognito_user_pool_client_secret
-  sensitive = true
+# NOTE (2026-04-21): Live Cognito pool (us-east-1_PgwOR439P / prod-amplify-users)
+# is managed outside Terraform. The `cognito_pool` module now only manages the
+# ACM cert for auth.hfu-amplify.org — see modules/cognito_pool/cognito_pool.tf.
+output "cognito_ssl_cert_arn" {
+  description = "ARN of the ACM cert backing auth.hfu-amplify.org"
+  value       = module.cognito_pool.cognito_ssl_cert_arn
 }
 
 # Accessing the outputs from the ECS module
@@ -161,7 +179,7 @@ output "openai_endpoints_secret_arn" {
   value       = module.ecs.openai_endpoints_secret_arn
 }
 output "domain_name" {
-  value       = "${local.env}-${var.domain_name}"
+  value       = var.domain_name
   description = "The domain name used for the application"
 }
 

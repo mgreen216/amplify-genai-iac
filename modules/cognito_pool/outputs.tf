@@ -1,21 +1,8 @@
-output "cognito_user_pool_id" {
-  value       = aws_cognito_user_pool.main.id
-  description = "The UserPool ID"
-}
+# Module now manages only the ACM certificate for auth.hfu-amplify.org.
+# The live Cognito pool (us-east-1_PgwOR439P) is managed outside Terraform.
+# See cognito_pool.tf for the 2026-04-21 consolidation note.
 
-output "user_pool_domain" {
-  value       = aws_cognito_user_pool_domain.main.domain
-  description = "Custom Domain"
-}
-
-output "cognito_user_pool_url" {
-  value = aws_cognito_user_pool.main.endpoint
-}
-
-output "cognito_user_pool_client_id" {
-  value = aws_cognito_user_pool_client.main.id
-}
-
-output "cognito_user_pool_client_secret" {
-  value = aws_cognito_user_pool_client.main.client_secret
+output "cognito_ssl_cert_arn" {
+  description = "ARN of the ACM cert backing auth.hfu-amplify.org"
+  value       = aws_acm_certificate.cognito_ssl_cert.arn
 }

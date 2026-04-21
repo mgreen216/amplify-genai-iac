@@ -15,6 +15,16 @@ output "alb_sg_id" {
   value       = aws_security_group.alb_sg.id
 }
 
+output "alb_arn_suffix" {
+  description = "The ARN suffix of the ALB for CloudWatch metrics"
+  value       = aws_lb.alb.arn_suffix
+}
+
+output "target_group_arn_suffix" {
+  description = "The ARN suffix of the target group for CloudWatch metrics"
+  value       = aws_lb_target_group.tg.arn_suffix
+}
+
 output "ssl_certificate_arn" {
   description = "The ARN of the SSL certificate"
   value       = aws_acm_certificate.ssl_cert[0].arn
